@@ -5,16 +5,26 @@ using System.Drawing;
 using System.IO;
 using System.Media;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using tessnet2;
+using System.Collections;
+using System.Collections.Generic;
+using MySocketServer;
 
 namespace AppleRobot
 {
 	public class MainForm : Form
 	{
+		// Socket
+		private delegate void AppendDelegate(string str);
+		private delegate void AddDelegate(MyFriend frd);
+		private delegate void RemoveDelegate(MyFriend frd);
+		//Socket
+		
 		public delegate string DelegateGetString();
 		public delegate void DelegateListvieItemTextChange(ListViewItem item, int itemKey, string itemValue, Color itemColor);
 		public delegate void DelegateOnChangeButtonText(Button button, string strText);
@@ -158,6 +168,23 @@ namespace AppleRobot
 		public static string[] m_UserConfigKeys;
 		public static string[] m_AIDKeys;
 		// XML
+		
+		// Socket
+		private Panel panel_Socket;
+		private Button button_OpenSocket;
+		private TcpListener listener;
+		private bool socketIsStart = false;
+		private ComboBox comboBox_IP;
+		private TextBox textBox_Port;
+		private ListBox listBox_SocketStatus;
+		private ComboBox comboBox_Client;
+		private MainForm.AppendDelegate AppendString;
+		private MainForm.AddDelegate AddFriend;
+		private MainForm.RemoveDelegate RemoveFriend;
+		private ArrayList friends = new ArrayList();
+		private Button button_TestSocket;
+		private TextBox textBox_TestSocketMessage;
+		// Socket
 		
 		private IContainer components;
 		public string[,] ErrorConvert;
@@ -1334,6 +1361,66 @@ namespace AppleRobot
 			this.listView_Select.View = View.Details;
 			// List
 			
+			// Socket
+			this.button_OpenSocket = new Button();
+			this.button_OpenSocket.Location = new Point(50, 300);
+			this.button_OpenSocket.Size = new Size(100, 40);
+			this.button_OpenSocket.Name = "button_OpenSocket";
+			this.button_OpenSocket.Text = "等待手機";
+			this.button_OpenSocket.Click += new EventHandler(this.button_OpenSocket_Click);
+			
+			this.button_TestSocket = new Button();
+			this.button_TestSocket.Location = new Point(200, 300);
+			this.button_TestSocket.Size = new Size(100, 40);
+			this.button_TestSocket.Name = "button_TestSocket";
+			this.button_TestSocket.Text = "發送測試";
+			this.button_TestSocket.Click += new EventHandler(this.button_TestSocket_Click);
+			
+			this.textBox_TestSocketMessage = new TextBox();
+			this.textBox_TestSocketMessage.Location = new Point(0, 200);
+			this.textBox_TestSocketMessage.Size = new Size(200, 30);
+			this.textBox_TestSocketMessage.Name = "textBox_TestSocketMessage";
+			
+			this.comboBox_IP = new ComboBox();
+			this.comboBox_IP.Location = new Point(0, 0);
+			this.comboBox_IP.Size = new Size(100, 30);
+			this.comboBox_IP.Name = "comboBox_IP";
+			
+			this.textBox_Port = new TextBox();
+			this.textBox_Port.Location = new Point(210, 0);
+			this.textBox_Port.Size = new Size(50, 30);
+			this.textBox_Port.Name = "textbox_Port";
+			
+			this.listBox_SocketStatus = new ListBox();
+			this.listBox_SocketStatus.Location = new Point(0, 80);
+			this.listBox_SocketStatus.Size = new Size(350, 100);
+			this.listBox_SocketStatus.Name = "listBox_SocketStatus";
+			//this.listBox_SocketStatus.ItemHeight = 18;
+			
+			this.comboBox_Client = new ComboBox();
+			this.comboBox_Client.Location = new Point(0, 50);
+			this.comboBox_Client.Size = new Size(150, 30);
+			this.comboBox_Client.Name = "comboBox_Client";
+			
+			this.panel_Socket = new Panel();
+			this.panel_Socket.SuspendLayout();
+			this.panel_Socket.Location = new Point(1000, 290);
+			this.panel_Socket.Size = new Size(400, 400);
+			this.panel_Socket.BorderStyle = BorderStyle.FixedSingle;
+			this.panel_Socket.Name = "panel_Socket";
+			this.panel_Socket.Controls.Add(this.button_OpenSocket);
+			this.panel_Socket.Controls.Add(this.comboBox_IP);
+			this.panel_Socket.Controls.Add(this.textBox_Port);
+			this.panel_Socket.Controls.Add(this.listBox_SocketStatus);
+			this.panel_Socket.Controls.Add(this.comboBox_Client);
+			this.panel_Socket.Controls.Add(this.button_TestSocket);
+			this.panel_Socket.Controls.Add(this.textBox_TestSocketMessage);
+			
+			base.Controls.Add(this.panel_Socket);
+			this.panel_Socket.ResumeLayout(false);
+			this.panel_Socket.PerformLayout();
+			// Socket
+			
 			this.groupBox1 = new GroupBox();
 			this.groupBox2 = new GroupBox();
 			this.groupBox3 = new GroupBox();
@@ -1392,7 +1479,7 @@ namespace AppleRobot
 			this.groupBox2.TabStop = false;
 			this.groupBox2.Text = "記錄";
 			
-			base.ClientSize = new Size(1000, 800);
+			base.ClientSize = new Size(1500, 800);
 			base.FormBorderStyle = FormBorderStyle.FixedSingle;
 			base.MaximizeBox = false;
 			base.StartPosition = FormStartPosition.CenterScreen;
@@ -1425,6 +1512,7 @@ namespace AppleRobot
 			this.Text = "AppleRobot";
 			base.Shown += new EventHandler(this.MainForm_Shown);
 			base.Closed += new EventHandler(this.MainForm_Closed);
+			base.Load += new EventHandler(this.SocketIP_Load);
 			this.groupBox1.ResumeLayout(false);
 			this.groupBox1.PerformLayout();
 			this.groupBox3.ResumeLayout(false);
@@ -3514,6 +3602,190 @@ namespace AppleRobot
 			{
 				this.listView_Appleid.SelectedItems[0].Remove();
 				this.SaveAIDConfig();
+			}
+		}
+		
+		public List<string> getIP() {
+			List<string> list = new List<string>();
+			List<string> result;
+			try {
+				string hostName = Dns.GetHostName();
+				IPHostEntry hostEntry = Dns.GetHostEntry(hostName);
+				for(int i = 0; i<hostEntry.AddressList.Length; i++) {
+					if(hostEntry.AddressList[i].AddressFamily == AddressFamily.InterNetwork) {
+						list.Add(hostEntry.AddressList[i].ToString());
+					}
+				}
+				result = list;
+			} catch(Exception e) {
+				this.LogAdd("無法取得電腦 IP 地址: " + e.Message, MainForm.LOG_TYPE.LOG_TYPE_Err);
+				list.Clear();
+				result = list;
+			}
+			return result;
+		}
+		
+		private void button_OpenSocket_Click(object sender, EventArgs e) {
+			if(!this.socketIsStart) {
+				IPEndPoint localEP = new IPEndPoint(IPAddress.Parse(this.comboBox_IP.Text), int.Parse(this.textBox_Port.Text));
+				this.listener = new TcpListener(localEP);
+				this.listener.Start(10);
+				this.socketIsStart = true;
+				this.listBox_SocketStatus.Invoke(this.AppendString, new object[] {
+					string.Format("等待手機中: {0}", this.listener.LocalEndpoint.ToString())
+				});
+				AsyncCallback callback = new AsyncCallback(this.AcceptCallBack);
+				this.listener.BeginAcceptSocket(callback, this.listener);
+				this.button_OpenSocket.Enabled = false;
+			}
+		}
+		
+		private void button_TestSocket_Click(object sender, EventArgs e) {
+			if(this.textBox_TestSocketMessage.Text.Trim() == "") {
+				this.listBox_SocketStatus.Items.Add("請輸入測試訊息");
+				this.textBox_TestSocketMessage.Focus();
+			} else {
+				if(this.comboBox_Client.SelectedIndex < 0) {
+					this.listBox_SocketStatus.Items.Add("請選擇發送目標手機");
+				} else {
+					int selectedIndex = this.comboBox_Client.SelectedIndex;
+					this.SendData((MyFriend)this.friends[selectedIndex], this.textBox_TestSocketMessage.Text.Trim());
+				}
+			}
+		}
+		
+		private void SendData(MyFriend frd, string data) {
+			try {
+				byte[] bytes = Encoding.UTF8.GetBytes(data);
+				AsyncCallback callback = new AsyncCallback(this.SendCallback);
+				frd.socket.BeginSend(bytes, 0, bytes.Length, SocketFlags.None, callback, frd);
+				data = string.Format("To[{0}]:{1}", frd.socket.RemoteEndPoint.ToString(), data);
+				this.listBox_SocketStatus.Invoke(
+					this.AppendString, new object[]
+					{
+						data
+					}
+				);
+			} catch {
+				this.comboBox_Client.Invoke(
+					this.RemoveFriend, new object[] {
+						frd
+					}
+				);
+			}
+		}
+		
+		private void SendCallback(IAsyncResult ar) {
+			MyFriend myFriend = (MyFriend)ar.AsyncState;
+			try {
+				myFriend.socket.EndSend(ar);
+			} catch {
+				this.comboBox_Client.Invoke(
+					this.RemoveFriend, new object[] {
+						myFriend
+					}
+				);
+			}
+		}
+		
+		private void SocketIP_Load(object sender, EventArgs e) {
+			this.AppendString = new MainForm.AppendDelegate(this.AppendMethod);
+			this.AddFriend = new MainForm.AddDelegate(this.AddMethod);
+			this.RemoveFriend = new MainForm.RemoveDelegate(this.RemoveMethod);
+			List<string> ip = this.getIP();
+			if(ip.Count <= 0) {
+				this.comboBox_IP.Items.Clear();
+				this.comboBox_IP.Text = "未能取得 IP 地址";
+			} else {
+				foreach(string ipItem in ip) {
+					this.comboBox_IP.Items.Add(ipItem);
+				}
+				this.comboBox_IP.SelectedIndex = 0;
+			}
+			this.textBox_Port.Text = "54321";
+		}
+		
+		private void AppendMethod(string str) {
+			this.listBox_SocketStatus.Items.Add(str);
+			if(str.Contains("From")) {
+				string text = str.Substring(str.Length - 8, 8);
+			}
+			this.listBox_SocketStatus.SelectedIndex = this.listBox_SocketStatus.Items.Count - 1;
+			this.listBox_SocketStatus.ClearSelected();
+		}
+		
+		private void RemoveMethod(MyFriend frd) {
+			int index = this.friends.IndexOf(frd);
+			this.comboBox_Client.Items.RemoveAt(index);
+			lock(this.friends) {
+				this.friends.Remove(frd);
+			}
+			frd.Dispose();
+		}
+		
+		private void AddMethod(MyFriend frd) {
+			lock(this.friends) {
+				this.friends.Add(frd);
+			}
+			this.comboBox_Client.Items.Add(frd.socket.RemoteEndPoint.ToString());
+			this.comboBox_Client.SelectedIndex = 0;
+			this.listBox_SocketStatus.Invoke(
+				this.AppendString, new object[] {
+					string.Format("檢測到手機", new object[0])
+				}
+			);
+		}
+		
+		private void AcceptCallBack(IAsyncResult ar) {
+			try {
+				Socket s = this.listener.EndAcceptSocket(ar);
+				MyFriend myFriend = new MyFriend(s);
+				this.comboBox_Client.Invoke(
+					this.AddFriend, new object[] {
+						myFriend
+					}
+				);
+				AsyncCallback callback;
+				if(this.socketIsStart) {
+					callback = new AsyncCallback(this.AcceptCallBack);
+					this.listener.BeginAcceptSocket(callback, this.listener);
+				}
+				myFriend.ClearBuffer();
+				callback = new AsyncCallback(this.ReceiveCallback);
+				myFriend.socket.BeginReceive(myFriend.Rcvbuffer, 0, myFriend.Rcvbuffer.Length, SocketFlags.None, callback, myFriend);
+			} catch {
+				this.socketIsStart = false;
+			}
+		}
+		
+		private void ReceiveCallback(IAsyncResult ar) {
+			MyFriend myFriend = (MyFriend)ar.AsyncState;
+			try {
+				int num = myFriend.socket.EndReceive(ar);
+				if(num == 0) {
+					this.comboBox_Client.Invoke(
+						this.RemoveFriend, new object[] {
+							myFriend
+						}
+					);
+				} else {
+					string text = Encoding.UTF8.GetString(myFriend.Rcvbuffer, 0, num);
+					text = string.Format("From[{0}]:{1}", myFriend.socket.RemoteEndPoint.ToString(), text);
+					this.listBox_SocketStatus.Invoke(
+						this.AppendString, new object[] {
+							text
+						}
+					);
+					myFriend.ClearBuffer();
+					AsyncCallback callback = new AsyncCallback(this.ReceiveCallback);
+					myFriend.socket.BeginReceive(myFriend.Rcvbuffer, 0, myFriend.Rcvbuffer.Length, SocketFlags.None, callback, myFriend);
+				}
+			} catch {
+				this.comboBox_Client.Invoke(
+					this.RemoveFriend, new object[] {
+						myFriend
+					}
+				);
 			}
 		}
 	}

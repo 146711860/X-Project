@@ -42,6 +42,7 @@
     <Compile Include="AppleRobot.Properties\Resources.cs" />
     <Compile Include="AppleRobot.Properties\Settings.cs" />
     <Compile Include="AppleRobot\APtimeslots.cs" />
+    <Compile Include="AppleRobot\MyFriend.cs" />
     <Compile Include="AppleRobot\HttpWeb.cs" />
     <Compile Include="AppleRobot\InfoTable.cs" />
     <Compile Include="AppleRobot\MainForm.cs" />
