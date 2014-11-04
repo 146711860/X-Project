@@ -184,6 +184,8 @@ namespace AppleRobot
 		private ArrayList friends = new ArrayList();
 		private Button button_TestSocket;
 		private TextBox textBox_TestSocketMessage;
+		private TextBox textBox_SendSMSTo;
+		private Button button_SendSMS;
 		// Socket
 		
 		private IContainer components;
@@ -1402,6 +1404,19 @@ namespace AppleRobot
 			this.comboBox_Client.Size = new Size(150, 30);
 			this.comboBox_Client.Name = "comboBox_Client";
 			
+			this.textBox_SendSMSTo = new TextBox();
+			this.textBox_SendSMSTo.Location = new Point(0, 250);
+			this.textBox_SendSMSTo.Size = new Size(100, 30);
+			this.textBox_SendSMSTo.Name = "textBox_SendSMSTo";
+			this.textBox_SendSMSTo.Text = "64500366";
+			
+			this.button_SendSMS = new Button();
+			this.button_SendSMS.Location = new Point(300,300);
+			this.button_SendSMS.Size = new Size(100, 40);
+			this.button_SendSMS.Name = "button_SendSMS";
+			this.button_SendSMS.Text = "發出訊息";
+			this.button_SendSMS.Click += new EventHandler(button_SendSMS_Click);
+			
 			this.panel_Socket = new Panel();
 			this.panel_Socket.SuspendLayout();
 			this.panel_Socket.Location = new Point(1000, 290);
@@ -1415,6 +1430,8 @@ namespace AppleRobot
 			this.panel_Socket.Controls.Add(this.comboBox_Client);
 			this.panel_Socket.Controls.Add(this.button_TestSocket);
 			this.panel_Socket.Controls.Add(this.textBox_TestSocketMessage);
+			this.panel_Socket.Controls.Add(this.textBox_SendSMSTo);
+			this.panel_Socket.Controls.Add(this.button_SendSMS);
 			
 			base.Controls.Add(this.panel_Socket);
 			this.panel_Socket.ResumeLayout(false);
@@ -3709,6 +3726,7 @@ namespace AppleRobot
 			this.listBox_SocketStatus.Items.Add(str);
 			if(str.Contains("From")) {
 				string text = str.Substring(str.Length - 8, 8);
+				this.textBox_PhoneR.Text = text;
 			}
 			this.listBox_SocketStatus.SelectedIndex = this.listBox_SocketStatus.Items.Count - 1;
 			this.listBox_SocketStatus.ClearSelected();
@@ -3786,6 +3804,21 @@ namespace AppleRobot
 						myFriend
 					}
 				);
+			}
+		}
+		
+		private void button_SendSMS_Click(object sender, EventArgs e) {
+			string text = this.textBox_SendSMSTo.Text.ToString();
+			string data = "send message: " + text + " " + this.textBox_SendSMSTo.Text.ToString();
+			if(text == "") {
+				this.listBox_SocketStatus.Items.Add("請輸入發送內容");
+			} else {
+				if(this.comboBox_Client.SelectedIndex < 0) {
+					this.listBox_SocketStatus.Items.Add("請選擇發送目標手機");
+				} else {
+					int selectedIndex = this.comboBox_Client.SelectedIndex;
+					this.SendData((MyFriend)this.friends[selectedIndex], data);
+				}
 			}
 		}
 	}
